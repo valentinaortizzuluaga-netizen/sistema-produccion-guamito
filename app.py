@@ -15,13 +15,12 @@ st.set_page_config(
 st.title(" Sistema de gestión de procesos - Guamito S.A.S.")
 st.markdown("<p style='opacity:0.7; font-size:14px;'>Sistema de gestión y programación de procesos en campo para la optimización de decisiones</p>", unsafe_allow_html=True)
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "Producción", 
     "Comparación", 
     "Descartes", 
     "Incidencias", 
-    "Proyección", 
-    "Reporte PDF"
+    "Proyección"
 ])
 
 with tab1:
@@ -1451,85 +1450,3 @@ def extraer_tareas_pro(archivo_pdf):
         st.error(f"Error al leer el PDF: {e}")
     
     return pd.DataFrame(datos_extraidos).drop_duplicates()
-
-with tab6:
-    st.header(" Gestión de tareas")
-    
-    archivo_pdf = st.file_uploader(" Sube el archico de programación (PDF)", type=["pdf"], key="pro_pdf_uploader")
-
-    if archivo_pdf:
-        # Procesar solo si no existe en el estado de sesión
-        if 'df_tareas' not in st.session_state:
-            with st.spinner("Analizando programación..."):
-                st.session_state.df_tareas = extraer_tareas_pro(archivo_pdf)
-
-        df = st.session_state.df_tareas
-
-        if not df.empty:
-            # Selector de Lote
-            lotes_disponibles = sorted(df["Lote"].unique())
-            col_l1, col_l2 = st.columns([2, 1])
-            with col_l1:
-                lote_sel = st.selectbox(" Seleccione el Lote a gestionar:", lotes_disponibles)
-            
-            tareas_lote = df[df["Lote"] == lote_sel]
-            semana_lote = tareas_lote["Semana"].iloc[0] if not tareas_lote.empty else "N/A"
-            
-            with col_l2:
-                st.metric("Semana Ciclo", semana_lote)
-
-            st.markdown("---")
-
-            # --- SECCIÓN DE INSUMOS CRÍTICOS (CAL / GALLINAZA) ---
-            insumos = tareas_lote[tareas_lote["Actividad"].str.contains("SOLICITAR", na=False)]
-            if not insumos.empty:
-                st.subheader(" Insumos Calculados")
-                for _, row in insumos.iterrows():
-                    partes = row["Actividad"].split("|")
-                    nombre_insumo = partes[0].strip()
-                    cantidad_calculada = partes[1].strip()
-                    
-                    st.warning(f"**{cantidad_calculada}** — {nombre_insumo}")
-            
-            st.write("")
-
-            # --- CHECKLIST DE ACTIVIDADES ---
-            st.subheader(" Actividades del Lote")
-            
-            # Usamos un contenedor para que se vea ordenado
-            with st.container():
-                col_task1, col_task2 = st.columns(2)
-                
-                # Listar todas las tareas del lote
-                for i, idx in enumerate(tareas_lote.index):
-                    # Dividir en 2 columnas para ahorrar espacio
-                    col_actual = col_task1 if i % 2 == 0 else col_task2
-                    
-                    # Limpiamos el texto para el checkbox (quitamos el cálculo si existe)
-                    texto_checkbox = df.at[idx, "Actividad"].split("|")[0].strip()
-                    
-                    # Guardamos el estado en el dataframe global de la sesión
-                    st.session_state.df_tareas.at[idx, "Hecho"] = col_actual.checkbox(
-                        texto_checkbox, 
-                        value=df.at[idx, "Hecho"], 
-                        key=f"check_{idx}"
-                    )
-
-            # --- PROGRESO Y CIERRE ---
-            st.markdown("---")
-            progreso = df[df["Lote"] == lote_sel]["Hecho"].mean()
-            col_p1, col_p2 = st.columns([4, 1])
-            
-            with col_p1:
-                st.progress(progreso)
-            with col_p2:
-                st.write(f"**{int(progreso*100)}% Completado**")
-
-            # Botón para resetear todo
-            if st.button(" Cargar otro PDF / Resetear"):
-                if 'df_tareas' in st.session_state:
-                    del st.session_state.df_tareas
-                st.rerun()
-
-        else:
-            st.info("No se encontraron tareas con el formato esperado en este PDF.")
